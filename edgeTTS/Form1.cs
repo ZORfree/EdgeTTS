@@ -1,4 +1,4 @@
-ï»¿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -16,38 +16,38 @@ using Edge_tts_sharp.Model;
 using NAudio.Wave;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.Window;
 
-///1.å®ç°è¾“å…¥æ–‡æœ¬æ¡†ã€è¯­ç§é€‰æ‹©æ¡†ã€è¯•å¬|åœæ­¢æŒ‰é’®ã€ä¿å­˜ä½ç½®(é»˜è®¤å½“å‰ç›®å½•)
-///2.å®ç°è¯­é€Ÿçš„é€‰æ‹©å˜æ¢
-///3.å®ç°è¯¥è¯­ç§çš„æ‰€æœ‰å‘è¨€äººçš„éŸ³é¢‘ä¸€é”®åˆæˆ
-///4.å®ç°æ ¼å¼è½¬æ¢ä½å•é€šé“16k 16bitçš„wavéŸ³é¢‘æ ¼å¼
-///5.æ·»åŠ è¯­é€Ÿå˜æ¢å’Œè¿›åº¦æ¡
-///6.é˜²æ­¢å¤šæ¬¡ç‚¹å‡»é€ æˆé‡å¤åˆæˆè®¾è®¡
+///1.ÊµÏÖÊäÈëÎÄ±¾¿ò¡¢ÓïÖÖÑ¡Ôñ¿ò¡¢ÊÔÌı|Í£Ö¹°´Å¥¡¢±£´æÎ»ÖÃ(Ä¬ÈÏµ±Ç°Ä¿Â¼)
+///2.ÊµÏÖÓïËÙµÄÑ¡Ôñ±ä»»
+///3.ÊµÏÖ¸ÃÓïÖÖµÄËùÓĞ·¢ÑÔÈËµÄÒôÆµÒ»¼üºÏ³É
+///4.ÊµÏÖ¸ñÊ½×ª»»Î»µ¥Í¨µÀ16k 16bitµÄwavÒôÆµ¸ñÊ½
+///5.Ìí¼ÓÓïËÙ±ä»»ºÍ½ø¶ÈÌõ
+///6.·ÀÖ¹¶à´Îµã»÷Ôì³ÉÖØ¸´ºÏ³ÉÉè¼Æ
 namespace edgeTTS
 {
     public partial class edgeTTS : Form
     {
         Dictionary<string, string> langMappings = new Dictionary<string, string>
         {
-            { "zh", "æ±‰è¯­" },{ "en", "è‹±è¯­" },{ "af", "å—éè·å…°è¯­" },
-            { "sq", "é˜¿å°”å·´å°¼äºš" },{ "am", "é˜¿å§†å“ˆæ‹‰è¯­" },{ "ar", "é˜¿æ‹‰ä¼¯è¯­" },{ "az", "é˜¿å¡æ‹œç–†è¯­" },{ "bn", "å­ŸåŠ æ‹‰è¯­" },{ "bs", "æ³¢æ–¯å°¼äºšè¯­" },
-            { "bg", "ä¿åŠ åˆ©äºšè¯­" },{ "my", "ç¼…ç”¸è¯­" },{ "ca", "åŠ æ³°ç½—å°¼äºšè¯­" },{ "hr", "å…‹ç½—åœ°äºšè¯­" },{ "cs", "æ·å…‹è¯­" },{ "da", "ä¸¹éº¦è¯­" },
-            { "nl", "è·å…°è¯­" },{ "et", "çˆ±æ²™å°¼äºšè¯­" },{ "fil", "è²å¾‹å®¾è¯­" },{ "fi", "èŠ¬å…°è¯­" },{ "fr", "æ³•è¯­" },{ "gl", "åŠ åˆ©è¥¿äºšè¯­" },
-            { "ka", "æ ¼é²å‰äºšè¯­" },{ "de", "å¾·è¯­" },{ "el", "å¸Œè…Šè¯­" },{ "gu", "å¤å‰æ‹‰ç‰¹è¯­" },{ "he", "å¸Œä¼¯æ¥è¯­" },{ "hi", "å°åœ°è¯­" },
-            { "hu", "åŒˆç‰™åˆ©è¯­" },{ "is", "å†°å²›è¯­" },{ "id", "å°å°¼è¯­" },{ "ga", "çˆ±å°”å…°è¯­" },{ "it", "æ„å¤§åˆ©è¯­" },{ "ja", "æ—¥è¯­" },
-            { "jv", "çˆªå“‡è¯­" },{ "kn", "å¡çº³è¾¾è¯­" },{ "kk", "å“ˆè¨å…‹è¯­" },{ "km", "é«˜æ£‰è¯­" },{ "ko", "éŸ©è¯­" },{ "lo", "è€æŒè¯­" },
-            { "lv", "æ‹‰è„±ç»´äºšè¯­" },{ "lt", "ç«‹é™¶å®›è¯­" },{ "mk", "é©¬å…¶é¡¿è¯­" },{ "ms", "é©¬æ¥è¯­" },{ "ml", "é©¬æ‹‰é›…æ‹‰å§†è¯­" },{ "mt", "é©¬è€³ä»–è¯­" },
-            { "mr", "é©¬æ‹‰åœ°è¯­" },{ "mn", "è’™å¤è¯­" },{ "ne", "å°¼æ³Šå°”è¯­" },{ "nb", "æŒªå¨è¯­" },{ "ps", "æ™®ä»€å›¾è¯­" },{ "fa", "æ³¢æ–¯è¯­" },
-            { "pl", "æ³¢å…°è¯­" },{ "pt", "è‘¡è„ç‰™è¯­" },{ "ro", "ç½—é©¬å°¼äºšè¯­" },{ "ru", "ä¿„è¯­" },{ "sr", "å¡å°”ç»´äºšè¯­" },{ "si", "åƒ§ä¼½ç½—è¯­" },
-            { "sk", "æ–¯æ´›ä¼å…‹è¯­" },{ "sl", "æ–¯æ´›æ–‡å°¼äºšè¯­" },{ "so", "ç´¢é©¬é‡Œè¯­" },{ "es", "è¥¿ç­ç‰™è¯­" },{ "su", "å·½ä»–è¯­" },{ "sw", "æ–¯ç“¦å¸Œé‡Œè¯­" },
-            { "sv", "ç‘å…¸è¯­" },{ "ta", "æ³°ç±³å°”è¯­" },{ "te", "æ³°å¢å›ºè¯­" },{ "th", "æ³°è¯­" },{ "tr", "åœŸè€³å…¶è¯­" },{ "uk", "ä¹Œå…‹å…°è¯­" },
-            { "ur", "ä¹Œå°”éƒ½è¯­" },{ "uz", "ä¹Œå…¹åˆ«å…‹è¯­" },{ "vi", "è¶Šå—è¯­" },{ "cy", "å¨å°”å£«è¯­" },{ "zu", "ç¥–é²è¯­" }
+            { "zh", "ººÓï" },{ "en", "Ó¢Óï" },{ "af", "ÄÏ·ÇºÉÀ¼Óï" },
+            { "sq", "°¢¶û°ÍÄáÑÇ" },{ "am", "°¢Ä·¹şÀ­Óï" },{ "ar", "°¢À­²®Óï" },{ "az", "°¢Èû°İ½®Óï" },{ "bn", "ÃÏ¼ÓÀ­Óï" },{ "bs", "²¨Ë¹ÄáÑÇÓï" },
+            { "bg", "±£¼ÓÀûÑÇÓï" },{ "my", "ÃåµéÓï" },{ "ca", "¼ÓÌ©ÂŞÄáÑÇÓï" },{ "hr", "¿ËÂŞµØÑÇÓï" },{ "cs", "½İ¿ËÓï" },{ "da", "µ¤ÂóÓï" },
+            { "nl", "ºÉÀ¼Óï" },{ "et", "°®É³ÄáÑÇÓï" },{ "fil", "·ÆÂÉ±öÓï" },{ "fi", "·ÒÀ¼Óï" },{ "fr", "·¨Óï" },{ "gl", "¼ÓÀûÎ÷ÑÇÓï" },
+            { "ka", "¸ñÂ³¼ªÑÇÓï" },{ "de", "µÂÓï" },{ "el", "Ï£À°Óï" },{ "gu", "¹Å¼ªÀ­ÌØÓï" },{ "he", "Ï£²®À´Óï" },{ "hi", "Ó¡µØÓï" },
+            { "hu", "ĞÙÑÀÀûÓï" },{ "is", "±ùµºÓï" },{ "id", "Ó¡ÄáÓï" },{ "ga", "°®¶ûÀ¼Óï" },{ "it", "Òâ´óÀûÓï" },{ "iu", " ÒÁÅ¬¿ËÌáÍ¼ÌØÓï" },{ "ja", "ÈÕÓï" },
+            { "jv", "×¦ÍÛÓï" },{ "kn", "¿¨ÄÉ´ïÓï" },{ "kk", "¹şÈø¿ËÓï" },{ "km", "¸ßÃŞÓï" },{ "ko", "º«Óï" },{ "lo", "ÀÏÎÎÓï" },
+            { "lv", "À­ÍÑÎ¬ÑÇÓï" },{ "lt", "Á¢ÌÕÍğÓï" },{ "mk", "ÂíÆä¶ÙÓï" },{ "ms", "ÂíÀ´Óï" },{ "ml", "ÂíÀ­ÑÅÀ­Ä·Óï" },{ "mt", "Âí¶úËûÓï" },
+            { "mr", "ÂíÀ­µØÓï" },{ "mn", "ÃÉ¹ÅÓï" },{ "ne", "Äá²´¶ûÓï" },{ "nb", "Å²ÍşÓï" },{ "ps", "ÆÕÊ²Í¼Óï" },{ "fa", "²¨Ë¹Óï" },
+            { "pl", "²¨À¼Óï" },{ "pt", "ÆÏÌÑÑÀÓï" },{ "ro", "ÂŞÂíÄáÑÇÓï" },{ "ru", "¶íÓï" },{ "sr", "Èû¶ûÎ¬ÑÇÓï" },{ "si", "É®Ù¤ÂŞÓï" },
+            { "sk", "Ë¹Âå·¥¿ËÓï" },{ "sl", "Ë¹ÂåÎÄÄáÑÇÓï" },{ "so", "Ë÷ÂíÀïÓï" },{ "es", "Î÷°àÑÀÓï" },{ "su", "ÙãËûÓï" },{ "sw", "Ë¹ÍßÏ£ÀïÓï" },
+            { "sv", "ÈğµäÓï" },{ "ta", "Ì©Ã×¶ûÓï" },{ "te", "Ì©Â¬¹ÌÓï" },{ "th", "Ì©Óï" },{ "tr", "ÍÁ¶úÆäÓï" },{ "uk", "ÎÚ¿ËÀ¼Óï" },
+            { "ur", "ÎÚ¶û¶¼Óï" },{ "uz", "ÎÚ×È±ğ¿ËÓï" },{ "vi", "Ô½ÄÏÓï" },{ "cy", "Íş¶ûÊ¿Óï" },{ "zu", "×æÂ³Óï" }
 
         };
         string currentDirectory = Directory.GetCurrentDirectory();
         //private IWavePlayer _device;
         private IWavePlayer _device = new WaveOutEvent(); // Create device
         private CancellationTokenSource _cts;
-        
+
 
 
 
@@ -59,17 +59,33 @@ namespace edgeTTS
             this.Text = "EdgeTTS By Zorfree V" + Assembly.GetExecutingAssembly().GetName().Version.ToString();
 
         }
+        //private void edgeTTS_Load(object sender, EventArgs e)
+        //{
+        //    Edge_tts.Await = true;
+        //    PlayOption option = new PlayOption
+        //    {
+        //        Rate = 1,
+        //        Text = ""
+        //    };
 
+        //    //Console.WriteLine("ÇëÊäÈëÎÄ±¾ÄÚÈİ.");
+        //    option.Text = "hi geely";
+        //    // »ñÈ¡xiaoxiaoÓïÒô°ü
+        //    var voice = Edge_tts.GetVoice().FirstOrDefault(i => i.Name == "Microsoft Server Speech Text to Speech Voice (zh-CN, XiaoxiaoNeural)");
+        //    Edge_tts.PlayText(option, voice);
+        //}
 
         private void edgeTTS_Load(object sender, EventArgs e)
         {
+            //Edge_tts.Proxy = "wss://webproxy.harui.qzz.io";
+            Edge_tts.Await = true;
             var voices = Edge_tts.GetVoice();
             string defaultVoice = null;
             foreach (var item in voices)
             {
-                //voice name isMicrosoft Server Speech Text to Speech Voice (zu-ZA, ThembaNeural), localeï¼ˆè¯­è¨€ï¼‰ is zu-ZA, SuggestedCodec(éŸ³é¢‘ç±»å‹) is audio-24khz-48kbitrate-mono-mp3
+                //voice name isMicrosoft Server Speech Text to Speech Voice (zu-ZA, ThembaNeural), locale£¨ÓïÑÔ£© is zu-ZA, SuggestedCodec(ÒôÆµÀàĞÍ) is audio-24khz-48kbitrate-mono-mp3
 
-                //Console.WriteLine($"voice name is{item.Name}, localeï¼ˆè¯­è¨€ï¼‰ is {item.Locale}, SuggestedCodec(éŸ³é¢‘ç±»å‹) is {item.SuggestedCodec}");
+                //Console.WriteLine($"voice name is{item.Name}, locale£¨ÓïÑÔ£© is {item.Locale}, SuggestedCodec(ÒôÆµÀàĞÍ) is {item.SuggestedCodec}");
                 char[] delimiters = new char[] { '-' };
                 string value;
                 if (langMappings.TryGetValue(item.Locale.Split(delimiters)[0], out value))
@@ -78,14 +94,15 @@ namespace edgeTTS
                     languageCombo.Items.Add(itemVoice);
                     if (defaultVoice == null)
                     {
-                        if (item.Name.Contains("zh-")){
+                        if (item.Name.Contains("zh-"))
+                        {
                             defaultVoice = itemVoice;
                         }
                     }
                 }
                 else
                 {
-                    languageCombo.Items.Add(item.Name.Replace("Microsoft Server Speech Text to Speech Voice", "æœªçŸ¥"));
+                    languageCombo.Items.Add(item.Name.Replace("Microsoft Server Speech Text to Speech Voice", "Î´Öª"));
                 }
             }
 
@@ -95,16 +112,16 @@ namespace edgeTTS
         private void languageCombo_SelectedIndexChanged(object sender, EventArgs e)
         {
 
-            
+
         }
         private void StartUpdateProgress()
         {
-            // æ­¤å¤„å¯ç”¨Timerå®Œæˆè€Œä¸æ˜¯æ‰‹åŠ¨å¾ªç¯ï¼Œä½†ä¸å»ºè®®ä½¿ç”¨UIçº¿ç¨‹ä¸Šçš„Timer
+            // ´Ë´¦¿ÉÓÃTimerÍê³É¶ø²»ÊÇÊÖ¶¯Ñ­»·£¬µ«²»½¨ÒéÊ¹ÓÃUIÏß³ÌÉÏµÄTimer
             Task.Run(() =>
             {
                 while (!_cts.IsCancellationRequested)
                 {
-                    Console.WriteLine("çŠ¶æ€æ£€æµ‹å½“å‰æ’­æ”¾çŠ¶æ€"+_device.PlaybackState);
+                    Console.WriteLine("×´Ì¬¼ì²âµ±Ç°²¥·Å×´Ì¬" + _device.PlaybackState);
                     if (_device.PlaybackState == PlaybackState.Stopped)
                     {
                         BeginInvoke(new Action(UpdateProgress));
@@ -120,7 +137,7 @@ namespace edgeTTS
         }
         private void UpdateProgress()
         {
-            playStopButton.Text = "è¯•å¬";
+            playStopButton.Text = "ÊÔÌı";
             playStopButton.BackColor = Color.Green;
             textBox.Enabled = true;
             DisposeAll();
@@ -129,7 +146,7 @@ namespace edgeTTS
         private void browseButton_Click(object sender, EventArgs e)
         {
             FolderBrowserDialog folder = new FolderBrowserDialog();
-            folder.Description = "è¯·é€‰æ‹©åˆæˆéŸ³é¢‘ä¿å­˜çš„ç›®å½•";
+            folder.Description = "ÇëÑ¡ÔñºÏ³ÉÒôÆµ±£´æµÄÄ¿Â¼";
             if (folder.ShowDialog() == DialogResult.OK)
             {
                 string path = folder.SelectedPath; // "e:/go"
@@ -139,7 +156,7 @@ namespace edgeTTS
 
         private void playStopButton_Click(object sender, EventArgs e)
         {
-            
+
 
             if (_device.PlaybackState == PlaybackState.Playing)
             {
@@ -149,27 +166,28 @@ namespace edgeTTS
             }
             else
             {
-                playStopButton.Text = "åœæ­¢";
+                playStopButton.Text = "Í£Ö¹";
                 playStopButton.BackColor = Color.Red;
                 textBox.Enabled = false;
                 _cts = new CancellationTokenSource();
-                
+
                 char[] delimiters = new char[] { '(' };
                 var voice = Edge_tts.GetVoice().FirstOrDefault(i => i.Name.Contains(languageCombo.Text.Split(delimiters)[1]));
-                string msg = textBox.Text.Replace("#"," ");
+                string msg = textBox.Text.Replace("#", " ");
                 if (voice != null)
                 {
                     if (!string.IsNullOrWhiteSpace(msg))
                     {
                         //Edge_tts.PlayText(msg, voice);
-                        // æ–‡å­—è½¬è¯­éŸ³ï¼Œå¹¶ä¸”è®¾ç½®è¯­é€Ÿ
+                        // ÎÄ×Ö×ªÓïÒô£¬²¢ÇÒÉèÖÃÓïËÙ
                         //Edge_tts.PlayText(msg, voice, speedTrackBar.Value);
-                        // å›è°ƒå‡½æ•°çš„ç¬¬ä¸€ä¸ªå‚æ•°æ˜¯binaryæ•°æ®
+                        // »Øµ÷º¯ÊıµÄµÚÒ»¸ö²ÎÊıÊÇbinaryÊı¾İ
                         PlayOption option = new PlayOption
                         {
                             Rate = speedTrackBar.Value,
                             Text = msg,
                         };
+
                         Edge_tts.Invoke(option, voice, (_binary) =>
                         {
                             //Console.WriteLine(_device.PlaybackState);
@@ -179,7 +197,7 @@ namespace edgeTTS
                             _device.Init(sr);
                             //_device.PlaybackStopped += Device_OnPlaybackStopped;
                             PlayAction();
-                            StartUpdateProgress(); // ç•Œé¢æ›´æ–°çº¿ç¨‹
+                            StartUpdateProgress(); // ½çÃæ¸üĞÂÏß³Ì
 
                         });
                     }
@@ -225,8 +243,8 @@ namespace edgeTTS
 
         private void speedTrackBar_Scroll(object sender, EventArgs e)
         {
-            //å˜é€Ÿ : 0
-            speedLabel.Text = "å˜é€Ÿ: " + speedTrackBar.Value;
+            //±äËÙ : 0
+            speedLabel.Text = "±äËÙ: " + speedTrackBar.Value;
         }
 
         private void synthesizeButton_Click(object sender, EventArgs e)
@@ -239,11 +257,12 @@ namespace edgeTTS
             string savePathText = savePathTextBox.Text;
             string speed_type = "normal";
 
-            if (speedTrackBarValue > 20 )
+            if (speedTrackBarValue > 20)
             {
                 speed_type = "fast";
 
-            }else if (speedTrackBarValue < -20)
+            }
+            else if (speedTrackBarValue < -20)
             {
                 speed_type = "slow";
             }
@@ -252,7 +271,7 @@ namespace edgeTTS
 
             new Thread(() =>
             {
-                
+
                 if (!Directory.Exists(outputPath))
                 {
                     Directory.CreateDirectory(outputPath);
@@ -279,27 +298,29 @@ namespace edgeTTS
                         {
                             char[] delimiters = new char[] { '(', '-', ')' };
                             Console.WriteLine(languageComboText.Split(delimiters)[1]);
-                            var voices = Edge_tts.GetVoice().FindAll(i => i.Name.Contains(languageComboText.Split(delimiters)[1]+"-"));
+                            var voices = Edge_tts.GetVoice().FindAll(i => i.Name.Contains(languageComboText.Split(delimiters)[1] + "-"));
                             int count = voices.Count;
                             BeginInvoke(new Action(() => { progressBar.Maximum = count; }));
 
                             int N = 0;
                             foreach (var item in voices)
                             {
-                                
+
                                 char[] t_delimiters = new char[] { '(', ')' };
                                 string saveName = $"{item.Name.Split(t_delimiters)[1].Replace(",", "_").Replace(" ", "") + j.ToString()}.wav";
 
-                                //Console.WriteLine($"voice name is{item.Name}, localeï¼ˆè¯­è¨€ï¼‰ is {item.Locale}, SuggestedCodec(éŸ³é¢‘ç±»å‹) is {item.SuggestedCodec}");
-                                // åªä¿å­˜ï¼Œä¸æ’­æ”¾
+                                //Console.WriteLine($"voice name is{item.Name}, locale£¨ÓïÑÔ£© is {item.Locale}, SuggestedCodec(ÒôÆµÀàĞÍ) is {item.SuggestedCodec}");
+                                // Ö»±£´æ£¬²»²¥·Å
                                 //Edge_tts.SaveAudio(msg, item, speedTrackBarValue, Path.Combine(savePath, $"{saveName}.mp3"));
                                 PlayOption option = new PlayOption
                                 {
                                     Rate = speedTrackBarValue,
                                     Text = msg,
                                 };
+                                //Edge_tts.Await = true;
                                 Edge_tts.Invoke(option, item, (_binary) =>
                                 {
+                                    Console.WriteLine("½øÈë»Øµ÷");
                                     var outFile = Path.Combine(savePath, saveName);
                                     var ms = new MemoryStream(_binary.ToArray());
                                     var reader = new StreamMediaFoundationReader(ms);
@@ -326,6 +347,7 @@ namespace edgeTTS
                                 Rate = speedTrackBarValue,
                                 Text = msg,
                             };
+                            Edge_tts.Await = true;
                             Edge_tts.Invoke(option, voice, (_binary) =>
                             {
                                 var outFile = Path.Combine(savePath, saveName);
@@ -345,7 +367,7 @@ namespace edgeTTS
                 }
                 wav_scp.Close();
                 wav_lab.Close();
-                Console.WriteLine("å·²ç»å…³é—­æ‹‰");
+                Console.WriteLine("ÒÑ¾­¹Ø±ÕÀ­");
 
 
 

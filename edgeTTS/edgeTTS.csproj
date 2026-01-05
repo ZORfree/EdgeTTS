@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>ak10n-jxur2-001.ico</ApplicationIcon>
+    <ProduceReferenceAssembly>True</ProduceReferenceAssembly>
+    <PackageIcon>ak10n-jxur2-001.ico</PackageIcon>
+    <AssemblyVersion>0.2.3.0</AssemblyVersion>
+    <FileVersion>0.2.3.0</FileVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="ak10n-jxur2-001.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\ak10n-jxur2-001.ico">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Edge_tts_sharp\Edge_tts_sharp.csproj" />
+  </ItemGroup>
+
+</Project>
