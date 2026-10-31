@@ -38,6 +38,8 @@ namespace Edge_tts_sharp
     {
         private ClientWebSocket _ws;
         private CancellationTokenSource _cts;
+        private int _disposed;
+        internal event Action<Exception> OnError;
 
         public event Action<Log> OnLog;
         public event EventHandler<MessageEventArgs> OnMessage;
@@ -86,11 +88,24 @@ namespace Edge_tts_sharp
             }
         }
 
-        public async Task ConnectAsync()
+        public Task ConnectAsync() => ConnectAsync(CancellationToken.None);
+
+        internal async Task ConnectAsync(CancellationToken cancellationToken)
         {
             try
             {
-                await _ws.ConnectAsync(new Uri(WssAddress), _cts.Token).ConfigureAwait(false);
+                using (var connection = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, cancellationToken))
+                {
+                    connection.CancelAfter(TimeSpan.FromSeconds(10));
+                    try
+                    {
+                        await _ws.ConnectAsync(new Uri(WssAddress), connection.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException e) when (!cancellationToken.IsCancellationRequested && !_cts.IsCancellationRequested)
+                    {
+                        throw new TimeoutException("WebSocket 连接超时。", e);
+                    }
+                }
                 OnLog?.Invoke(new Log { level = level.info, msg = "WebSocket Connected" });
                 
                 // Start receiving loop
@@ -165,7 +180,8 @@ namespace Edge_tts_sharp
             catch (OperationCanceledException) { }
             catch (Exception e)
             {
-                 OnLog?.Invoke(new Log { level = level.error, msg = $"WebSocket Receive Error: {e.Message}" });
+                 OnLog?.Invoke(new Log { level = level.error, msg = $"WebSocket Receive Error: {e}" });
+                 OnError?.Invoke(e);
                  OnColse?.Invoke(this, new CloseEventArgs { Reason = e.Message });
             }
         }
@@ -176,11 +192,14 @@ namespace Edge_tts_sharp
             SendAsync(msg).GetAwaiter().GetResult();
         }
 
-        public async Task SendAsync(string msg)
+        public Task SendAsync(string msg) => SendAsync(msg, CancellationToken.None);
+
+        internal async Task SendAsync(string msg, CancellationToken cancellationToken)
         {
-            if (_ws.State != WebSocketState.Open) return;
+            if (_ws.State != WebSocketState.Open) throw new WebSocketException("WebSocket is not open.");
             var bytes = Encoding.UTF8.GetBytes(msg);
-            await _ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, _cts.Token).ConfigureAwait(false);
+            using (var sending = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, cancellationToken))
+                await _ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, sending.Token).ConfigureAwait(false);
             OnLog?.Invoke(new Log { level = level.info, msg = $"WebSocket sent: {msg}" });
         }
 
@@ -192,8 +211,10 @@ namespace Edge_tts_sharp
 
         public void Dispose()
         {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
             _cts.Cancel();
             _ws.Dispose();
+            _cts.Dispose();
         }
     }
 }

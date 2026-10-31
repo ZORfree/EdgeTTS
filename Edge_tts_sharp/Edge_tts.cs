@@ -11,7 +11,6 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Edge_tts_sharp.Utils;
 using System.Threading;
-using System.Security.Cryptography;
 
 
 namespace Edge_tts_sharp
@@ -33,25 +32,7 @@ namespace Edge_tts_sharp
         
         static string GenerateSecMsGecToken()
         {
-            // 吵了下作业
-            // 来自 https://github.com/STBBRD/EdgeTTS_dotNET_Framework/
-            // 来自 https://github.com/rany2/edge-tts/issues/290#issuecomment-2464956570
-            var ticks = DateTime.Now.ToFileTimeUtc();
-            ticks -= ticks % 3_000_000_000;
-            var str = ticks + "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
-            return ToHexString(HashData(Encoding.ASCII.GetBytes(str)));
-        }
-        static string ToHexString(byte[] byteArray)
-        {
-            return BitConverter.ToString(byteArray).Replace("-", "").ToUpper();
-        }
-        static byte[] HashData(byte[] data)
-        {
-            using (SHA256 sha256 = SHA256.Create())
-            {
-                byte[] hashBytes = sha256.ComputeHash(data);
-                return hashBytes;
-            }
+            return EdgeToken.Generate(DateTime.UtcNow);
         }
         static string GetGUID()
         {
@@ -103,99 +84,107 @@ namespace Edge_tts_sharp
         /// <param name="voice">音源参数</param>
         public static void Invoke(PlayOption option, eVoice voice, Action<List<byte>> callback, IProgress<List<byte>> progress = null)
         {
-            var binary_delim = "Path:audio\r\n";
-            var sendRequestId = GetGUID();
-            var binary = new List<byte>();
-            bool IsTurnEnd = false;
+            var task = InvokeAsync(option, voice, callback, progress);
+            if (Await) task.GetAwaiter().GetResult();
+            else _ = ObserveAsync(task);
+        }
 
-            string url = $"wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&Sec-MS-GEC={GenerateSecMsGecToken()}&Sec-MS-GEC-Version=1-143.0.3650.75";
-            if (!string.IsNullOrEmpty(Proxy))
+        /// <summary>连接及整个合成请求的最长等待时间。</summary>
+        public static TimeSpan RequestTimeout = TimeSpan.FromSeconds(120);
+
+        /// <summary>等待 turn.end，完成保存和回调；连接、协议和回调错误通过 Task 传播。</summary>
+        public static async Task InvokeAsync(PlayOption option, eVoice voice, Action<List<byte>> callback, IProgress<List<byte>> progress = null)
+        {
+            if (option == null) throw new ArgumentNullException(nameof(option));
+            if (voice == null) throw new ArgumentNullException(nameof(voice));
+            if (RequestTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(RequestTimeout));
+            var timeout = RequestTimeout;
+            var binary = new List<byte>();
+            var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var url = $"wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken={EdgeToken.TrustedClientToken}&ConnectionId={GetGUID()}&Sec-MS-GEC={GenerateSecMsGecToken()}&Sec-MS-GEC-Version={EdgeToken.Version}";
+            if (!string.IsNullOrEmpty(Proxy)) url = Proxy.TrimEnd('/') + "/" + url;
+
+            using (var wss = new Wss(url))
+            using (var deadline = new CancellationTokenSource(timeout))
+            using (deadline.Token.Register(() =>
+                completed.TrySetException(new TimeoutException("语音合成请求超时。"))))
             {
-                url = Proxy.EndsWith("/") ? Proxy + url : Proxy + "/" + url;
-            }
-            if (Debug) Console.WriteLine($"Connect URL: {url}");
-            var wss = new Wss(url);
-            
-            wss.AddHeader("Origin", "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold");
-            wss.AddHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0");
-            wss.AddHeader("Accept-Encoding", "gzip, deflate, br, zstd");
-            wss.AddHeader("Accept-Language", "en-US,en;q=0.9");
-            wss.AddHeader("Pragma", "no-cache");
-            wss.AddHeader("Cache-Control", "no-cache");
-            wss.AddHeader("Cookie", "muid=" + GetGUID().ToUpper());
-            wss.OnMessage += (sender, e) =>
-            {
-                if (e.IsText)
+                wss.AddHeader("Origin", "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold");
+                wss.AddHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0");
+                wss.AddHeader("Accept-Encoding", "gzip, deflate, br, zstd");
+                wss.AddHeader("Accept-Language", "en-US,en;q=0.9");
+                wss.AddHeader("Pragma", "no-cache");
+                wss.AddHeader("Cache-Control", "no-cache");
+                wss.AddHeader("Cookie", "muid=" + GetGUID().ToUpperInvariant() + ";");
+                wss.OnLog += log =>
                 {
-                    var data = e.Data;
-                    var requestId = Regex.Match(data, @"X-RequestId:(?<requestId>.*?)\r\n").Groups["requestId"].Value;
-                    if (data.Contains("Path:turn.start"))
+                    if (Debug) Console.WriteLine($"[{log.level}] {log.msg}");
+                };
+                wss.OnError += error => completed.TrySetException(error);
+                wss.OnColse += (sender, e) =>
+                    completed.TrySetException(new WebSocketException("服务端在 turn.end 之前关闭连接：" + e.Reason));
+                wss.OnMessage += (sender, e) =>
+                {
+                    if (completed.Task.IsCompleted) return;
+                    try
                     {
-                        // start of turn, ignore. 开始信号，不用处理
-                    }
-                    else if (data.Contains("Path:turn.end"))
-                    {
-                        // 返回内容
-                        if (binary.Count > 0)
+                        if (e.IsText)
                         {
+                            if (Debug) Console.WriteLine(e.Data);
+                            if (!e.Data.Split(new[] { "\r\n" }, StringSplitOptions.None).Contains("Path:turn.end")) return;
+                            if (binary.Count == 0) throw new InvalidDataException("服务端未返回音频数据。");
+                            if (!string.IsNullOrEmpty(option.SavePath))
+                                File.WriteAllBytes(option.SavePath, binary.ToArray());
                             callback?.Invoke(binary);
+                            completed.TrySetResult(true);
                         }
-                        else
+                        else if (e.IsBinary)
                         {
-                            throw new Exception("返回值为空！");
+                            var data = e.RawData;
+                            if (data.Length < 2) throw new InvalidDataException("音频帧缺少头长度。");
+                            int headerLength = (data[0] << 8) | data[1];
+                            int offset = headerLength + 2;
+                            if (offset > data.Length) throw new InvalidDataException("音频帧头长度超出消息范围。");
+                            var headers = Encoding.UTF8.GetString(data, 2, headerLength);
+                            if (!headers.Split(new[] { "\r\n" }, StringSplitOptions.None).Contains("Path:audio"))
+                                throw new InvalidDataException("收到未知二进制消息。");
+                            if (offset == data.Length) return;
+                            var chunk = data.Skip(offset).ToList();
+                            binary.AddRange(chunk);
+                            progress?.Report(chunk);
                         }
-                        // end of turn, close stream. 结束信号，可主动关闭socket
-                        // 音频发送完毕后，最后还会收到一个表示音频结束的文本信息
-                        //wss.Close();
                     }
-                    else if (data.Contains("Path:response"))
-                    {
-                        // context response, ignore. 响应信号，无需处理
-                    }
-                    else
-                    {
-                        // 未知错误，通常不会发生
-                    }
-                    if (Debug) Console.WriteLine(e.Data);
-                    IsTurnEnd = true;
-                }
-                else if (e.IsBinary)
+                    catch (Exception error) { completed.TrySetException(error); }
+                };
+
+                // 超时覆盖连接及发送阶段；Dispose 会中止尚未完成的接收。
+                try
                 {
-                    var data = e.RawData;
-                    var requestId = Regex.Match(e.Data, @"X-RequestId:(?<requestId>.*?)\r\n").Groups["requestId"].Value;
-                    if (data[0] == 0x00 && data[1] == 0x67 && data[2] == 0x58)
-                    {
-                        // Last (empty) audio fragment. 空音频片段，代表音频发送结束
-                    }
-                    else
-                    {
-                        var index = Encoding.UTF8.GetString(data).IndexOf(binary_delim) + binary_delim.Length;
-                        var curVal = data.Skip(index);
-                        binary.AddRange(curVal);
-                        // 传出
-                        progress?.Report(curVal.ToList());
-                    }
+                    await wss.ConnectAsync(deadline.Token).ConfigureAwait(false);
+                    await wss.SendAsync(ConvertToAudioFormatWebSocketString(voice.SuggestedCodec), deadline.Token).ConfigureAwait(false);
+                    await wss.SendAsync(ConvertToSsmlWebSocketString(GetGUID(), voice.Locale, voice.Name,
+                        option.Rate, (int)(option.Volume * 100), option.Text), deadline.Token).ConfigureAwait(false);
+                    await completed.Task.ConfigureAwait(false);
                 }
-            };
-            wss.OnColse += (sender, e) =>
-            {
-                if (!string.IsNullOrEmpty(option.SavePath))
+                catch (OperationCanceledException) when (deadline.IsCancellationRequested)
                 {
-                    File.WriteAllBytes(option.SavePath, binary.ToArray());
+                    throw new TimeoutException("语音合成请求超时。");
                 }
-            };
-            wss.OnLog += (onmsg) =>
-            {
-                if(Debug) Console.WriteLine($"[{onmsg.level.ToString()}] {onmsg.msg}");
-            };
-            if (wss.Run())
-            {
-                wss.Send(ConvertToAudioFormatWebSocketString(voice.SuggestedCodec));
-                wss.Send(ConvertToSsmlWebSocketString(sendRequestId, voice.Locale, voice.Name, option.Rate, ((int)option.Volume * 100), option.Text));
+                finally
+                {
+                    // 观察超时产生的异常，避免连接阶段失败时遗留未观察的任务。
+                    if (completed.Task.IsFaulted) _ = completed.Task.Exception;
+                }
             }
-            while (Await && !IsTurnEnd)
+        }
+
+        private static async Task ObserveAsync(Task task)
+        {
+            try { await task.ConfigureAwait(false); }
+            catch (Exception error)
             {
-                Thread.Sleep(10);
+                System.Diagnostics.Trace.TraceError(error.ToString());
+                Console.Error.WriteLine(error);
             }
         }
         /// <summary>
@@ -232,14 +221,10 @@ namespace Edge_tts_sharp
         public static AudioPlayer GetPlayer(PlayOption option, eVoice voice)
         {
             AudioPlayer player = null;
-            Invoke(option, voice, (_binary) =>
+            InvokeAsync(option, voice, (_binary) =>
             {
                 player = new AudioPlayer(_binary.ToArray(), option.Volume);
-            });
-            while (player == null) 
-            {
-                Thread.Sleep(10);
-            }
+            }).GetAwaiter().GetResult();
             return player;
         }
         /// <summary>

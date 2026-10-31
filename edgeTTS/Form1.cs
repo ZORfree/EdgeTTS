@@ -154,7 +154,7 @@ namespace edgeTTS
             }
         }
 
-        private void playStopButton_Click(object sender, EventArgs e)
+        private async void playStopButton_Click(object sender, EventArgs e)
         {
 
 
@@ -188,18 +188,32 @@ namespace edgeTTS
                             Text = msg,
                         };
 
-                        Edge_tts.Invoke(option, voice, (_binary) =>
+                        playStopButton.Enabled = false;
+                        try
                         {
-                            //Console.WriteLine(_device.PlaybackState);
+                            await Edge_tts.InvokeAsync(option, voice, (_binary) =>
+                            {
+                                //Console.WriteLine(_device.PlaybackState);
 
-                            var ms = new MemoryStream(_binary.ToArray());
-                            var sr = new StreamMediaFoundationReader(ms);
-                            _device.Init(sr);
-                            //_device.PlaybackStopped += Device_OnPlaybackStopped;
-                            PlayAction();
-                            StartUpdateProgress(); // 界面更新线程
+                                var ms = new MemoryStream(_binary.ToArray());
+                                var sr = new StreamMediaFoundationReader(ms);
+                                _device.Init(sr);
+                                //_device.PlaybackStopped += Device_OnPlaybackStopped;
+                                PlayAction();
+                                StartUpdateProgress(); // 界面更新线程
 
-                        });
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            _cts?.Cancel();
+                            StopAction();
+                            textBox.Enabled = true;
+                            playStopButton.Text = "试听";
+                            playStopButton.BackColor = SystemColors.Control;
+                            MessageBox.Show(this, ex.GetBaseException().Message, "语音合成失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                        finally { playStopButton.Enabled = true; }
                     }
                 }
             }
@@ -271,56 +285,87 @@ namespace edgeTTS
 
             new Thread(() =>
             {
-
-                if (!Directory.Exists(outputPath))
+                try
                 {
-                    Directory.CreateDirectory(outputPath);
-                }
 
-                TextWriter wav_scp = new StreamWriter(Path.Combine(outputPath, "edge_tts.txt"));
-                TextWriter wav_lab = new StreamWriter(Path.Combine(outputPath, "edge_tts.lab"));
-                for (int j = 0; j < msgs.Length; j++)
-                {
-                    string msg = msgs[j];
-
-                    if (!string.IsNullOrWhiteSpace(msg))
+                    if (!Directory.Exists(outputPath))
                     {
+                        Directory.CreateDirectory(outputPath);
+                    }
 
-                        DateTime now = DateTime.Now;
-                        string nowString = now.ToString().Replace(" ", "-").Replace("/", "-").Replace(":", "_");
-                        string savePath = Path.Combine(outputPath, nowString).ToString();
+                    using TextWriter wav_scp = new StreamWriter(Path.Combine(outputPath, "edge_tts.txt"));
+                    using TextWriter wav_lab = new StreamWriter(Path.Combine(outputPath, "edge_tts.lab"));
+                    for (int j = 0; j < msgs.Length; j++)
+                    {
+                        string msg = msgs[j];
 
-                        if (!Directory.Exists(savePath))
+                        if (!string.IsNullOrWhiteSpace(msg))
                         {
-                            Directory.CreateDirectory(savePath);
-                        }
-                        if (allOfCheckBox.Checked)
-                        {
-                            char[] delimiters = new char[] { '(', '-', ')' };
-                            Console.WriteLine(languageComboText.Split(delimiters)[1]);
-                            var voices = Edge_tts.GetVoice().FindAll(i => i.Name.Contains(languageComboText.Split(delimiters)[1] + "-"));
-                            int count = voices.Count;
-                            BeginInvoke(new Action(() => { progressBar.Maximum = count; }));
 
-                            int N = 0;
-                            foreach (var item in voices)
+                            DateTime now = DateTime.Now;
+                            string nowString = now.ToString().Replace(" ", "-").Replace("/", "-").Replace(":", "_");
+                            string savePath = Path.Combine(outputPath, nowString).ToString();
+
+                            if (!Directory.Exists(savePath))
                             {
+                                Directory.CreateDirectory(savePath);
+                            }
+                            if (allOfCheckBox.Checked)
+                            {
+                                char[] delimiters = new char[] { '(', '-', ')' };
+                                Console.WriteLine(languageComboText.Split(delimiters)[1]);
+                                var voices = Edge_tts.GetVoice().FindAll(i => i.Name.Contains(languageComboText.Split(delimiters)[1] + "-"));
+                                int count = voices.Count;
+                                BeginInvoke(new Action(() => { progressBar.Maximum = count; }));
 
-                                char[] t_delimiters = new char[] { '(', ')' };
-                                string saveName = $"{item.Name.Split(t_delimiters)[1].Replace(",", "_").Replace(" ", "") + j.ToString()}.wav";
+                                int N = 0;
+                                foreach (var item in voices)
+                                {
 
-                                //Console.WriteLine($"voice name is{item.Name}, locale（语言） is {item.Locale}, SuggestedCodec(音频类型) is {item.SuggestedCodec}");
-                                // 只保存，不播放
-                                //Edge_tts.SaveAudio(msg, item, speedTrackBarValue, Path.Combine(savePath, $"{saveName}.mp3"));
+                                    char[] t_delimiters = new char[] { '(', ')' };
+                                    string saveName = $"{item.Name.Split(t_delimiters)[1].Replace(",", "_").Replace(" ", "") + j.ToString()}.wav";
+
+                                    //Console.WriteLine($"voice name is{item.Name}, locale（语言） is {item.Locale}, SuggestedCodec(音频类型) is {item.SuggestedCodec}");
+                                    // 只保存，不播放
+                                    //Edge_tts.SaveAudio(msg, item, speedTrackBarValue, Path.Combine(savePath, $"{saveName}.mp3"));
+                                    PlayOption option = new PlayOption
+                                    {
+                                        Rate = speedTrackBarValue,
+                                        Text = msg,
+                                    };
+                                    //Edge_tts.Await = true;
+                                    Edge_tts.Invoke(option, item, (_binary) =>
+                                    {
+                                        Console.WriteLine("进入回调");
+                                        var outFile = Path.Combine(savePath, saveName);
+                                        var ms = new MemoryStream(_binary.ToArray());
+                                        var reader = new StreamMediaFoundationReader(ms);
+                                        var outFormat = new WaveFormat(16000, 1);
+                                        var resampler = new MediaFoundationResampler(reader, outFormat);
+                                        WaveFileWriter.CreateWaveFile(outFile, resampler);
+                                    });
+                                    wav_scp.WriteLine(nowString + "/" + saveName);
+                                    wav_lab.WriteLine(saveName + "\t" + speed_type + "\t" + msg + "\tpinyin\t1");
+
+                                    N++;
+                                    BeginInvoke(new Action(() => { progressBar.Value = N; }));
+
+                                }
+                            }
+                            else
+                            {
+                                char[] delimiters = new char[] { '(', ')' };
+                                var voice = Edge_tts.GetVoice().FirstOrDefault(i => i.Name.Contains(languageComboText.Split(delimiters)[1]));
+                                //string savePath = Path.Combine(outputPath, nowString).ToString();
+                                string saveName = $"{voice.Name.Split(delimiters)[1].Replace(",", "_").Replace(" ", "") + j.ToString()}.wav";
                                 PlayOption option = new PlayOption
                                 {
                                     Rate = speedTrackBarValue,
                                     Text = msg,
                                 };
-                                //Edge_tts.Await = true;
-                                Edge_tts.Invoke(option, item, (_binary) =>
+                                Edge_tts.Await = true;
+                                Edge_tts.Invoke(option, voice, (_binary) =>
                                 {
-                                    Console.WriteLine("进入回调");
                                     var outFile = Path.Combine(savePath, saveName);
                                     var ms = new MemoryStream(_binary.ToArray());
                                     var reader = new StreamMediaFoundationReader(ms);
@@ -331,51 +376,31 @@ namespace edgeTTS
                                 wav_scp.WriteLine(nowString + "/" + saveName);
                                 wav_lab.WriteLine(saveName + "\t" + speed_type + "\t" + msg + "\tpinyin\t1");
 
-                                N++;
-                                BeginInvoke(new Action(() => { progressBar.Value = N; }));
-
+                                BeginInvoke(new Action(() => { progressBar.Value = progressBar.Maximum; }));
                             }
                         }
-                        else
-                        {
-                            char[] delimiters = new char[] { '(', ')' };
-                            var voice = Edge_tts.GetVoice().FirstOrDefault(i => i.Name.Contains(languageComboText.Split(delimiters)[1]));
-                            //string savePath = Path.Combine(outputPath, nowString).ToString();
-                            string saveName = $"{voice.Name.Split(delimiters)[1].Replace(",", "_").Replace(" ", "") + j.ToString()}.wav";
-                            PlayOption option = new PlayOption
-                            {
-                                Rate = speedTrackBarValue,
-                                Text = msg,
-                            };
-                            Edge_tts.Await = true;
-                            Edge_tts.Invoke(option, voice, (_binary) =>
-                            {
-                                var outFile = Path.Combine(savePath, saveName);
-                                var ms = new MemoryStream(_binary.ToArray());
-                                var reader = new StreamMediaFoundationReader(ms);
-                                var outFormat = new WaveFormat(16000, 1);
-                                var resampler = new MediaFoundationResampler(reader, outFormat);
-                                WaveFileWriter.CreateWaveFile(outFile, resampler);
-                            });
-                            wav_scp.WriteLine(nowString + "/" + saveName);
-                            wav_lab.WriteLine(saveName + "\t" + speed_type + "\t" + msg + "\tpinyin\t1");
 
-                            BeginInvoke(new Action(() => { progressBar.Value = progressBar.Maximum; }));
-                        }
                     }
+                    wav_scp.Close();
+                    wav_lab.Close();
+                    Console.WriteLine("已经关闭拉");
+
+
 
                 }
-                wav_scp.Close();
-                wav_lab.Close();
-                Console.WriteLine("已经关闭拉");
-
-
-
-                BeginInvoke(new Action(() =>
+                catch (Exception ex)
                 {
-                    textBox.Enabled = true;
-                    synthesizeButton.Enabled = true;
-                }));
+                    BeginInvoke(new Action(() => MessageBox.Show(this, ex.GetBaseException().Message,
+                        "语音合成失败", MessageBoxButtons.OK, MessageBoxIcon.Error)));
+                }
+                finally
+                {
+                    BeginInvoke(new Action(() =>
+                    {
+                        textBox.Enabled = true;
+                        synthesizeButton.Enabled = true;
+                    }));
+                }
             }).Start();
         }
     }
